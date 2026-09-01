@@ -2,10 +2,11 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 4 — Frontend** selesai, ditambah **autentikasi
-API Key** (bagian dari Phase 5) untuk `/api/printers`, `/api/print`, `/api/jobs`
-(di atas Phase 1: health check, Phase 2: `POST /api/print`, Phase 3: Job Management).
-Item Phase 5 lain (rate limiting, secure headers tambahan) masih menyusul.
+Status implementasi saat ini: **Phase 5 — Authentication + Security selesai**
+(autentikasi API Key, rate limiting sederhana, secure headers via Nginx), di atas
+Phase 1-4 (health check, print, job management, frontend). Phase 6 (Production Docker)
+dan Phase 7 (dokumentasi Cloudflare Tunnel — sebagian sudah ada di `DEPLOY.md`) masih
+menyusul.
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -79,6 +80,30 @@ Authorization: Bearer <PRINT_API_KEY>
 Docker `HEALTHCHECK` dan monitoring). Web UI menanyakan key ini sekali lewat halaman
 Login lalu menyimpannya di `localStorage` browser — tidak dikirim ke server lain, dan
 tidak pernah ditampilkan di log.
+
+## Rate limiting & secure headers
+
+Semua `/api/*` dibatasi **180 request/menit per IP** (in-memory, per proses backend —
+tidak butuh Redis). Ini bukan mekanisme lockout percobaan login khusus (API key 32-byte
+acak sudah cukup aman dari brute force), melainkan pengaman umum dari client yang salah
+konfigurasi/spam request. Kalau terlampaui, dapat `429 {"code": "RATE_LIMITED"}`.
+
+Nginx (frontend) menambahkan header keamanan berikut ke semua response:
+
+```text
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; ...
+```
+
+CSP dibuat ketat (tanpa `unsafe-inline`) karena build React ini tidak punya
+`<script>`/`<style>` inline sama sekali — kalau nanti ada perubahan yang butuh resource
+eksternal (CDN font, dsb), CSP ini perlu disesuaikan atau build akan gagal diam-diam di
+browser (cek DevTools Console untuk violation report kalau ada halaman yang terasa rusak
+setelah update).
 
 ## Test print
 

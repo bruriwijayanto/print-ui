@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import health, jobs, print as print_api, printers
 from app.config import get_settings
 from app.dependencies import get_current_api_key
+from app.middleware.rate_limit import RateLimitMiddleware
 
 settings = get_settings()
 
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware, max_requests=180, window_seconds=60)
 
 api_router = APIRouter(prefix="/api")
 # /api/health stays unauthenticated: Docker's own HEALTHCHECK and uptime
