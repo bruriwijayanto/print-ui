@@ -11,6 +11,18 @@ services:
     networks:
       - cups-network
 
+  frontend:
+    build:
+      context: ./frontend
+    container_name: cups-print-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - cups-network
+
 networks:
   cups-network:
     external: true

@@ -110,6 +110,7 @@ Minimal yang wajib disesuaikan:
 CUPS_SERVER=http://cups-test:631
 PRINT_API_KEY=<ganti-dengan-key-acak-yang-kuat>
 BACKEND_PORT=8000
+FRONTEND_PORT=8080
 ```
 
 `CUPS_USER` / `CUPS_PASSWORD` **boleh dikosongkan** untuk Phase 1 (endpoint read-only
@@ -126,8 +127,10 @@ Jangan commit `.env` ke Git — sudah masuk `.gitignore`.
 docker compose up -d --build
 ```
 
-Build pertama kali akan lebih lama karena `pycups` dikompilasi dari source
-(butuh `gcc` + `libcups2-dev`, sudah otomatis di-install di dalam Dockerfile).
+Build pertama kali akan lebih lama karena dua hal: `pycups` dikompilasi dari source
+(butuh `gcc` + `libcups2-dev`, sudah otomatis di-install di dalam Dockerfile backend),
+dan `npm install` untuk frontend (semua di dalam Docker, host tidak butuh Node.js sama
+sekali).
 
 ---
 
@@ -137,8 +140,8 @@ Build pertama kali akan lebih lama karena `pycups` dikompilasi dari source
 docker compose ps
 ```
 
-Pastikan `cups-print-backend` berstatus `Up` dan (setelah healthcheck interval
-pertama, ~30 detik) `healthy`.
+Pastikan `cups-print-backend` **dan** `cups-print-frontend` berstatus `Up`, dan
+`cups-print-backend` (setelah healthcheck interval pertama, ~30 detik) `healthy`.
 
 ```bash
 curl http://localhost:8000/api/health
@@ -174,15 +177,27 @@ http://STB-IP:8000/docs
 http://STB-IP:8000/openapi.json
 ```
 
+Web UI:
+
+```bash
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8080/
+curl -sS http://localhost:8080/api/health
+```
+
+Baris kedua harus mengembalikan response identik dengan `curl http://localhost:8000/api/health`
+langsung — membuktikan proxy `/api/*` Nginx ke backend bekerja. Buka `http://STB-IP:8080`
+di browser untuk melihat Dashboard.
+
 ---
 
 ## 6. Logs & debugging
 
 ```bash
 docker compose logs -f backend
+docker compose logs -f frontend
 ```
 
-Restart setelah mengubah `.env`:
+Restart setelah mengubah `.env` (frontend tidak baca `.env`, cukup restart backend):
 
 ```bash
 docker compose up -d --force-recreate backend
@@ -192,7 +207,13 @@ docker compose up -d --force-recreate backend
 
 ## 7. Akses dari LAN
 
-Selama belum ada frontend/Nginx (Phase 4), akses backend langsung:
+Web UI (frontend + Nginx, Phase 4):
+
+```text
+http://STB-IP:8080
+```
+
+Backend langsung (debugging/Swagger UI):
 
 ```text
 http://STB-IP:8000/docs
@@ -234,9 +255,13 @@ peringatan keamanan di bagian 0. Idealnya, setelah backend berjalan lewat
    - Subdomain: `printer`
    - Domain: `ora.my.id`
    - Path: kosongkan
-   - Service → Type: `HTTP`, URL: `localhost:8000` (Phase 1, langsung ke backend;
-     ganti ke `localhost:8080` setelah frontend/Nginx Phase 4 selesai)
+   - Service → Type: `HTTP`, URL: `localhost:8080` (frontend/Nginx — sudah live sejak
+     Phase 4; Nginx yang proxy `/api/*` ke backend secara internal)
 5. **Save**.
+
+> Kalau sebelumnya sempat diisi `localhost:8000` (langsung ke backend, saat Phase 1-3
+> sebelum frontend ada), edit entri yang sama dan ganti URL-nya ke `localhost:8080`
+> sekarang.
 
 Perubahan aktif dalam hitungan detik — **tidak perlu** `systemctl restart cloudflared`
 untuk tunnel dashboard-managed.
@@ -258,9 +283,13 @@ curl -sS -w '\nHTTP_CODE:%{http_code}\n' https://printer.ora.my.id/api/health
 ```
 
 Harus mengembalikan response yang sama seperti `curl http://localhost:8000/api/health`
-di langkah 5, tapi sekarang lewat HTTPS publik via Cloudflare. Kalau masih 404, cek
-lagi apakah hostname benar-benar tersimpan di tab Public Hostname; kalau 502, berarti
-hostname sudah kebaca tapi backend belum jalan di `localhost:8000` (jalankan langkah 4).
+di langkah 5, tapi sekarang lewat HTTPS publik via Cloudflare, diteruskan lewat proxy
+Nginx frontend. Kalau masih 404, cek lagi apakah hostname benar-benar tersimpan di tab
+Public Hostname; kalau 502, berarti hostname sudah kebaca tapi container frontend/backend
+belum jalan di `localhost:8080`/`:8000` (jalankan langkah 4).
+
+Buka juga `https://printer.ora.my.id/` langsung di browser — harus menampilkan Web UI
+(Dashboard), bukan cuma respons JSON.
 
 > Catatan non-mendesak: `cloudflared tunnel list` melaporkan versi terpasang
 > (`2025.7.0`) sudah outdated, direkomendasikan upgrade ke `2026.8.3` — tidak
@@ -295,5 +324,21 @@ docker network disconnect cups-network cups-test
 [ ] Port 631 (CUPS) tidak terekspos ke Internet
 ```
 
-Jika semua tercentang, laporkan hasilnya (terutama output `/api/printers`) agar
-implementasi dapat lanjut ke **Phase 2 — Print API**.
+## Checklist acceptance Phase 4 — Frontend
+
+```text
+[ ] docker compose up -d --build membangun frontend & backend tanpa error
+[ ] docker compose ps menunjukkan cups-print-frontend Up
+[ ] http://STB-IP:8080 menampilkan Dashboard (bukan halaman kosong/error)
+[ ] http://STB-IP:8080/api/health mengembalikan response sama seperti backend langsung
+[ ] Navigasi ke /printers, /print, /jobs, /settings via klik sidebar berfungsi
+[ ] Refresh langsung di URL /printers (bukan dari klik) tetap menampilkan halaman,
+    bukan 404 — membuktikan SPA fallback Nginx bekerja
+[ ] Printer Detail menampilkan action yang sesuai (Pause vs Resume, Enable vs Disable)
+[ ] Form Print menampilkan opsi sesuai capability printer (tidak menampilkan opsi
+    yang tidak didukung sebagai aktif)
+[ ] Loading/error/empty state terlihat wajar saat backend/CUPS down
+```
+
+Laporkan hasil kedua checklist ini (terutama screenshot atau deskripsi tampilan
+Dashboard) sebelum lanjut ke **Phase 5 — Authentication + Security**.

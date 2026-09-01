@@ -2,7 +2,9 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 3 — Job Management** (`GET/DELETE /api/jobs`, di atas Phase 1: health check + printers read-only, dan Phase 2: `POST /api/print` sungguhan ke CUPS).
+Status implementasi saat ini: **Phase 4 — Frontend** (React + Vite + TypeScript + Tailwind,
+di atas Phase 1: health check + printers read-only, Phase 2: `POST /api/print`, dan
+Phase 3: Job Management).
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -56,10 +58,13 @@ docker compose logs -f backend
 
 ## Access
 
-- API: `http://STB-IP:8000/api/health`, `http://STB-IP:8000/api/printers`
+- Web UI: `http://STB-IP:8080` (Nginx serve React build + proxy `/api/*` ke backend)
+- API langsung (untuk debugging): `http://STB-IP:8000/api/health`, `http://STB-IP:8000/api/printers`
 - Docs: `http://STB-IP:8000/docs`
 
-(Frontend & Nginx reverse proxy akan menggantikan akses langsung ke port backend pada Phase 4.)
+Browser sehari-hari cukup akses port `8080` — backend port `8000` tetap terbuka di LAN
+untuk kebutuhan debugging langsung (curl, Swagger UI), tidak wajib dipublish untuk
+end-user.
 
 ## Test print
 
@@ -97,6 +102,20 @@ curl -X DELETE https://printer.ora.my.id/api/jobs/3
 `job-state` IPP milik CUPS, bukan asumsi. `DELETE` hanya berhasil untuk job yang belum
 mencapai status akhir (`COMPLETED`/`CANCELED`/`FAILED`) — job yang sudah selesai akan
 ditolak dengan `409 JOB_NOT_CANCELABLE`, dan tidak pernah dihapus dari history.
+
+## Frontend
+
+Halaman yang tersedia: Dashboard, Printers, Printer Detail (dengan action
+pause/resume/enable/disable), Print (upload + preview + opsi cetak sesuai capability
+printer), Jobs (list + cancel), Job Detail (timeline status), Settings (status koneksi).
+
+Frontend berbicara ke backend lewat path relatif `/api/...` (same-origin, di-proxy oleh
+Nginx) — bukan cross-origin — jadi `CORS_ORIGINS` di `.env` backend hanya relevan untuk
+klien lain yang mengakses API langsung dari origin berbeda (mis. Postman/curl dari
+domain lain), bukan untuk Web UI ini sendiri.
+
+Polling: printers setiap 5 detik, jobs setiap 4 detik (TanStack Query `refetchInterval`),
+sesuai batasan resource STB — tidak menggunakan WebSocket.
 
 ## Troubleshooting
 

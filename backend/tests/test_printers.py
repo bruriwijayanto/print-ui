@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_printer_service
+from app.dependencies import get_cups_service, get_printer_service
 from app.main import app
-from app.services.cups import CupsConnectionError, PrinterNotFoundError
+from app.services.cups import CupsConnectionError, CupsOperationError, PrinterNotFoundError
 
 _PRINTER = {
     "name": "DevTestPrinter",
@@ -53,6 +53,29 @@ class _FakePrinterService:
         return self._detail
 
 
+class _FakeCupsService:
+    def __init__(self, error=None):
+        self._error = error
+        self.calls = []
+
+    def _do(self, action, name):
+        self.calls.append((action, name))
+        if self._error:
+            raise self._error
+
+    def pause_printer(self, name):
+        self._do("pause", name)
+
+    def resume_printer(self, name):
+        self._do("resume", name)
+
+    def enable_printer(self, name):
+        self._do("enable", name)
+
+    def disable_printer(self, name):
+        self._do("disable", name)
+
+
 def teardown_function():
     app.dependency_overrides.clear()
 
@@ -97,3 +120,68 @@ def test_get_printer_not_found_returns_404():
 
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "PRINTER_NOT_FOUND"
+
+
+def test_pause_printer_success():
+    fake = _FakeCupsService()
+    app.dependency_overrides[get_cups_service] = lambda: fake
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/pause")
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "printer": "Canon-G2030", "action": "paused"}
+    assert fake.calls == [("pause", "Canon-G2030")]
+
+
+def test_resume_printer_success():
+    fake = _FakeCupsService()
+    app.dependency_overrides[get_cups_service] = lambda: fake
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/resume")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "resumed"
+
+
+def test_enable_printer_success():
+    fake = _FakeCupsService()
+    app.dependency_overrides[get_cups_service] = lambda: fake
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/enable")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "enabled"
+
+
+def test_disable_printer_success():
+    fake = _FakeCupsService()
+    app.dependency_overrides[get_cups_service] = lambda: fake
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/disable")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "disabled"
+
+
+def test_pause_printer_cups_unavailable():
+    app.dependency_overrides[get_cups_service] = lambda: _FakeCupsService(error=CupsConnectionError("down"))
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/pause")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "CUPS_UNAVAILABLE"
+
+
+def test_pause_printer_cups_operation_error():
+    app.dependency_overrides[get_cups_service] = lambda: _FakeCupsService(error=CupsOperationError("rejected"))
+    client = TestClient(app)
+
+    response = client.post("/api/printers/Canon-G2030/pause")
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "CUPS_ERROR"
