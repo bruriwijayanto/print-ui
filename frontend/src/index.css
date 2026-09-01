@@ -4,22 +4,30 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 220 25% 97%;
+    --foreground: 222 47% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --radius: 0.5rem;
+    --card-foreground: 222 47% 13%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 222 47% 13%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 243 60% 95%;
+    --accent-foreground: 243 75% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 89%;
+    --radius: 0.75rem;
+
+    /* Dark slate-navy sidebar, distinct from the light content area. */
+    --sidebar-background: 224 39% 10%;
+    --sidebar-foreground: 210 20% 88%;
+    --sidebar-muted: 217 15% 60%;
+    --sidebar-accent: 243 75% 62%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 222 30% 18%;
   }
 }
 

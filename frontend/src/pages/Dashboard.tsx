@@ -1,11 +1,13 @@
+import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, Clock, Printer, PrinterCheck, XCircle } from "lucide-react";
 import { jobApi, printerApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { PrinterStateBadge, JobStatusBadge } from "@/components/StatusBadge";
 import { LoadingState, ErrorState, EmptyState } from "@/components/QueryState";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 
 function isToday(isoString: string | null): boolean {
   if (!isoString) return false;
@@ -51,12 +53,12 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Total Printers" value={stats.total} />
-        <StatCard label="Online" value={stats.online} />
-        <StatCard label="Printing" value={stats.printing} />
-        <StatCard label="Queued Jobs" value={stats.queued} />
-        <StatCard label="Completed Today" value={stats.completedToday} />
-        <StatCard label="Failed Today" value={stats.failedToday} />
+        <StatCard label="Total Printers" value={stats.total} icon={Printer} tone="indigo" />
+        <StatCard label="Online" value={stats.online} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Printing" value={stats.printing} icon={PrinterCheck} tone="blue" />
+        <StatCard label="Queued Jobs" value={stats.queued} icon={Clock} tone="amber" />
+        <StatCard label="Completed Today" value={stats.completedToday} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Failed Today" value={stats.failedToday} icon={XCircle} tone="red" />
       </div>
 
       <Card>
@@ -146,13 +148,36 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+const TONE_CLASSES: Record<string, string> = {
+  indigo: "bg-indigo-50 text-indigo-600",
+  emerald: "bg-emerald-50 text-emerald-600",
+  blue: "bg-blue-50 text-blue-600",
+  amber: "bg-amber-50 text-amber-600",
+  red: "bg-red-50 text-red-600",
+};
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: ComponentType<{ className?: string }>;
+  tone: keyof typeof TONE_CLASSES;
+}) {
   return (
     <Card>
-      <CardHeader className="pb-1">
-        <CardTitle>{label}</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 text-2xl font-semibold">{value}</CardContent>
+      <CardContent className="flex items-center gap-3 p-4">
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", TONE_CLASSES[tone])}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="text-xl font-semibold leading-tight">{value}</p>
+        </div>
+      </CardContent>
     </Card>
   );
 }
