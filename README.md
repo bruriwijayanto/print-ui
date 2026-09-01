@@ -2,9 +2,10 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 4 — Frontend** (React + Vite + TypeScript + Tailwind,
-di atas Phase 1: health check + printers read-only, Phase 2: `POST /api/print`, dan
-Phase 3: Job Management).
+Status implementasi saat ini: **Phase 4 — Frontend** selesai, ditambah **autentikasi
+API Key** (bagian dari Phase 5) untuk `/api/printers`, `/api/print`, `/api/jobs`
+(di atas Phase 1: health check, Phase 2: `POST /api/print`, Phase 3: Job Management).
+Item Phase 5 lain (rate limiting, secure headers tambahan) masih menyusul.
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -66,11 +67,25 @@ Browser sehari-hari cukup akses port `8080` — backend port `8000` tetap terbuk
 untuk kebutuhan debugging langsung (curl, Swagger UI), tidak wajib dipublish untuk
 end-user.
 
+## Authentication
+
+`/api/printers`, `/api/print`, dan `/api/jobs` sekarang mewajibkan header:
+
+```text
+Authorization: Bearer <PRINT_API_KEY>
+```
+
+(`PRINT_API_KEY` dari `.env` backend.) `/api/health` tetap terbuka tanpa auth (dipakai
+Docker `HEALTHCHECK` dan monitoring). Web UI menanyakan key ini sekali lewat halaman
+Login lalu menyimpannya di `localStorage` browser — tidak dikirim ke server lain, dan
+tidak pernah ditampilkan di log.
+
 ## Test print
 
 ```bash
 curl -X POST \
   https://printer.ora.my.id/api/print \
+  -H "Authorization: Bearer <PRINT_API_KEY>" \
   -F "file=@test.pdf" \
   -F "printer=Canon-G2030" \
   -F "copies=1"
@@ -84,17 +99,15 @@ cuma ekstensi nama file). Response sukses:
 ```
 
 Cek hasilnya benar-benar tercetak dengan `docker exec cups-test lpstat -W completed -o` atau
-lewat web UI CUPS di `cups-test`. `PRINT_API_KEY` belum diberlakukan (autentikasi masuk
-Phase 5) — endpoint ini untuk sementara terbuka bagi siapa pun yang bisa mencapai
-`printer.ora.my.id`, jadi jangan sebarkan URL ini secara luas sebelum Phase 5 selesai.
+lewat web UI CUPS di `cups-test`.
 
 ## Job management
 
 ```bash
-curl https://printer.ora.my.id/api/jobs
-curl https://printer.ora.my.id/api/jobs/3
-curl https://printer.ora.my.id/api/printers/Canon-G2030/jobs
-curl -X DELETE https://printer.ora.my.id/api/jobs/3
+curl -H "Authorization: Bearer <PRINT_API_KEY>" https://printer.ora.my.id/api/jobs
+curl -H "Authorization: Bearer <PRINT_API_KEY>" https://printer.ora.my.id/api/jobs/3
+curl -H "Authorization: Bearer <PRINT_API_KEY>" https://printer.ora.my.id/api/printers/Canon-G2030/jobs
+curl -X DELETE -H "Authorization: Bearer <PRINT_API_KEY>" https://printer.ora.my.id/api/jobs/3
 ```
 
 `GET /api/jobs` menampilkan seluruh history job (bukan cuma yang aktif). Status
@@ -126,10 +139,17 @@ Jika `/api/health` mengembalikan `{"status": "degraded", "cups": "disconnected"}
 3. Pastikan `CUPS_SERVER` di `.env` sesuai nama container CUPS.
 4. Cek log backend: `docker compose logs -f backend`
 
-Jika operasi admin (pause/resume/enable/disable/print/cancel — Phase 2/3) gagal dengan
-"Unauthorized": CUPS mensyaratkan autentikasi untuk operasi tersebut. Buat user pada
-`cups-test` yang tergabung di grup `lpadmin`, lalu isi `CUPS_USER`/`CUPS_PASSWORD` di `.env`.
-Endpoint read-only (printer list/detail) tidak memerlukan ini.
+Ada dua jenis "Unauthorized" yang berbeda sumbernya — jangan tertukar:
+
+- **`401 {"code": "UNAUTHORIZED"}`** dari `/api/printers`, `/api/print`, `/api/jobs` →
+  ini dari aplikasi kita sendiri: header `Authorization: Bearer <PRINT_API_KEY>` tidak
+  ada/salah. Cek `.env` backend, atau login ulang di Web UI.
+- Error otorisasi yang **berasal dari CUPS** (biasanya `502 CUPS_ERROR`/`PRINT_FAILED`
+  dengan pesan IPP `client-error-not-authorized`) untuk operasi admin
+  (pause/resume/enable/disable/cancel): CUPS sendiri mensyaratkan autentikasi untuk
+  operasi tersebut. Buat user pada `cups-test` yang tergabung di grup `lpadmin`, lalu
+  isi `CUPS_USER`/`CUPS_PASSWORD` di `.env`. Endpoint read-only (printer list/detail)
+  tidak memerlukan ini.
 
 Jika container backend tidak pernah menjawab request setelah start (hang setelah log
 "Application startup complete" tanpa baris "Uvicorn running on..."): ini pola yang terlihat

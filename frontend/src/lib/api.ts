@@ -2,6 +2,7 @@ import type { HealthStatus } from "@/types/health";
 import type { JobCancelResponse, JobDetail, JobSummary } from "@/types/job";
 import type { PrinterDetail, PrinterSummary } from "@/types/printer";
 import type { PrintOptions, PrintJobResponse } from "@/types/print";
+import { clearApiKey, getApiKey } from "@/lib/auth";
 
 export class ApiError extends Error {
   code: string;
@@ -16,7 +17,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, init);
+  const headers = new Headers(init?.headers);
+  const apiKey = getApiKey();
+  if (apiKey) headers.set("Authorization", `Bearer ${apiKey}`);
+
+  const response = await fetch(`/api${path}`, { ...init, headers });
 
   if (!response.ok) {
     let code = "UNKNOWN_ERROR";
@@ -28,6 +33,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // response body wasn't JSON — keep the generic message above.
     }
+
+    if (response.status === 401) {
+      // Stored key is missing/invalid/rotated — force a fresh login rather
+      // than leaving the SPA stuck making requests that will never succeed.
+      clearApiKey();
+      if (location.pathname !== "/login") location.assign("/login");
+    }
+
     throw new ApiError(response.status, code, message);
   }
 

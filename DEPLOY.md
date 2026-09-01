@@ -157,14 +157,19 @@ Jika muncul `{"status": "degraded", "cups": "disconnected"}` (HTTP 503) — **ja
 lanjut** sebelum ini teratasi. Lihat bagian Troubleshooting di README.md.
 
 ```bash
-curl http://localhost:8000/api/printers
+curl -H "Authorization: Bearer $(grep PRINT_API_KEY .env | cut -d= -f2)" \
+  http://localhost:8000/api/printers
 ```
 
 Harus menampilkan `Canon-G2030` dengan data asli dari CUPS (state, description,
-device_uri, dll) — bukan data hardcode.
+device_uri, dll) — bukan data hardcode. Endpoint ini (dan `/api/print`, `/api/jobs`)
+mewajibkan header `Authorization: Bearer <PRINT_API_KEY>` — tanpa itu akan menerima
+`401 UNAUTHORIZED`. `/api/health` di atas sengaja dikecualikan agar Docker
+`HEALTHCHECK` tetap bisa mengeceknya tanpa kredensial.
 
 ```bash
-curl http://localhost:8000/api/printers/Canon-G2030
+curl -H "Authorization: Bearer $(grep PRINT_API_KEY .env | cut -d= -f2)" \
+  http://localhost:8000/api/printers/Canon-G2030
 ```
 
 Harus menampilkan detail lengkap termasuk `capabilities` (media, color, duplex,
