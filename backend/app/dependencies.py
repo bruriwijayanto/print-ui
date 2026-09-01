@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from app.config import get_settings
 from app.services.cups import CupsService
+from app.services.job_service import JobService
 from app.services.print_service import PrintService
 from app.services.printer_service import PrinterService
 
@@ -19,3 +20,7 @@ def get_printer_service() -> PrinterService:
 def get_print_service() -> PrintService:
     settings = get_settings()
     return PrintService(get_cups_service(), settings.max_upload_size_bytes)
+
+
+def get_job_service() -> JobService:
+    return JobService(get_cups_service())

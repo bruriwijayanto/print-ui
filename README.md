@@ -2,7 +2,7 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 2 — Print API** (`POST /api/print` sungguhan ke CUPS, di atas Phase 1: health check + printers read-only).
+Status implementasi saat ini: **Phase 3 — Job Management** (`GET/DELETE /api/jobs`, di atas Phase 1: health check + printers read-only, dan Phase 2: `POST /api/print` sungguhan ke CUPS).
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -82,6 +82,21 @@ Cek hasilnya benar-benar tercetak dengan `docker exec cups-test lpstat -W comple
 lewat web UI CUPS di `cups-test`. `PRINT_API_KEY` belum diberlakukan (autentikasi masuk
 Phase 5) — endpoint ini untuk sementara terbuka bagi siapa pun yang bisa mencapai
 `printer.ora.my.id`, jadi jangan sebarkan URL ini secara luas sebelum Phase 5 selesai.
+
+## Job management
+
+```bash
+curl https://printer.ora.my.id/api/jobs
+curl https://printer.ora.my.id/api/jobs/3
+curl https://printer.ora.my.id/api/printers/Canon-G2030/jobs
+curl -X DELETE https://printer.ora.my.id/api/jobs/3
+```
+
+`GET /api/jobs` menampilkan seluruh history job (bukan cuma yang aktif). Status
+(`PENDING`/`PROCESSING`/`COMPLETED`/`CANCELED`/`FAILED`) berasal langsung dari
+`job-state` IPP milik CUPS, bukan asumsi. `DELETE` hanya berhasil untuk job yang belum
+mencapai status akhir (`COMPLETED`/`CANCELED`/`FAILED`) — job yang sudah selesai akan
+ditolak dengan `409 JOB_NOT_CANCELABLE`, dan tidak pernah dihapus dari history.
 
 ## Troubleshooting
 

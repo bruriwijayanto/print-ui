@@ -33,7 +33,7 @@ def map_printer_state(attrs: dict) -> str:
     return _STATE_MAP.get(raw_state, "UNKNOWN")
 
 
-def _printer_name_from_uri(uri: str) -> str:
+def printer_name_from_uri(uri: str) -> str:
     return uri.rstrip("/").rsplit("/", 1)[-1]
 
 
@@ -45,7 +45,7 @@ def _job_counts_by_printer(cups_service: CupsService) -> dict[str, dict]:
         printer_uri = job_attrs.get("job-printer-uri", "")
         if not printer_uri:
             continue
-        printer_name = _printer_name_from_uri(printer_uri)
+        printer_name = printer_name_from_uri(printer_uri)
         entry = counts.setdefault(printer_name, {"queue_count": 0, "current_job": None})
         entry["queue_count"] += 1
         if job_attrs.get("job-state") == _JOB_STATE_PROCESSING:
