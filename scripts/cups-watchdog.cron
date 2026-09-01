@@ -1,0 +1,1 @@
+*/2 * * * * root /opt/cups-print-manager/scripts/cups-watchdog.sh >> /var/log/cups-watchdog.log 2>&1
