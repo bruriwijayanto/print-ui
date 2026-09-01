@@ -157,6 +157,45 @@ saat build/run di-emulasi QEMU (misal build ARM64 di mesin dev x86) akibat `uvlo
 hardware ARM64 asli (STB) seharusnya tidak terjadi karena tidak ada emulasi instruksi. Jika
 tetap terjadi di STB, override CMD container dengan `--loop asyncio` untuk memastikan.
 
+### `cups-test` gagal start / job stuck "Waiting for printer to become available"
+
+Container `cups-test` (image `manuelklaer/cups-canon`) mendeklarasikan `/etc/cups` sebagai
+**Docker volume** (anonymous jika tidak di-bind eksplisit). Kalau printer USB mati/lepas
+saat container ini di-restart, `docker restart`/`docker start` akan **gagal total**
+(`error gathering device information ... no such file or directory` untuk device
+`/dev/usb/lp0`) karena device mapping-nya tidak bisa dipenuhi. Kalau ini terjadi, job yang
+sedang aktif akan macet di status "Waiting for printer to become available" (bukan
+completed) sampai printer menyala kembali.
+
+Cara pulihkan:
+
+1. **Jangan** `docker rm` tanpa cek dulu — config asli (`printers.conf`, PPD) ada di
+   anonymous volume container itu, bukan di layer image, dan `docker rm` tanpa `-v`
+   (default) **tidak** menghapus volume-nya, jadi masih bisa direcover.
+2. Cek volume yang menggantung: `docker volume ls` (biasanya nama hash acak, dangling
+   sejak container lama dihapus).
+3. Intip isinya sebelum dipakai: `docker run --rm -v <VOLUME>:/data:ro alpine ls -la /data`
+   — cari yang punya `printers.conf` dan `ppd/Canon-G2030.ppd`.
+4. Recreate dengan volume itu ter-mount ke `/etc/cups`, plus device USB yang sekarang
+   sudah tersedia lagi:
+   ```bash
+   docker rm -f cups-test
+   docker run -d --name cups-test --restart always -p 631:631 \
+     --device /dev/bus/usb:/dev/bus/usb \
+     --device /dev/usb/lp0:/dev/usb/lp0 \
+     -v <VOLUME-YANG-BENAR>:/etc/cups \
+     -e TZ=Asia/Jakarta -e ADMIN_PASSWORD=<password-anda> \
+     manuelklaer/cups-canon:latest
+   docker network connect cups-network cups-test
+   ```
+5. Verifikasi: `docker exec cups-test lpstat -p Canon-G2030 -l` harus menunjukkan `idle`,
+   bukan lagi "waiting for printer to become available".
+
+Untuk mencegah ini di masa depan, pertimbangkan mem-bind `/etc/cups` ke path host yang
+jelas (mis. `-v /opt/cups-config:/etc/cups`) alih-alih membiarkannya jadi anonymous
+volume — supaya lebih mudah di-backup dan tidak bergantung pada "menemukan" volume hash
+yang tepat lagi di kemudian hari.
+
 ## Backup
 
 Yang perlu di-backup secara berkala:
