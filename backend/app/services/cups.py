@@ -11,6 +11,28 @@ from urllib.parse import urlparse
 
 import cups
 
+# CUPS/IPP does not return the full attribute set by default for job queries —
+# neither the bulk Get-Jobs nor the single Get-Job-Attributes call — so every
+# attribute job_service.py relies on must be requested explicitly here.
+_JOB_ATTRIBUTES = [
+    "job-id",
+    "job-name",
+    "job-originating-user-name",
+    "job-printer-uri",
+    "job-state",
+    "job-state-reasons",
+    "job-printer-state-message",
+    "time-at-creation",
+    "time-at-processing",
+    "time-at-completed",
+    "copies",
+    "page-ranges",
+    "media",
+    "orientation-requested",
+    "print-color-mode",
+    "sides",
+]
+
 
 class CupsConnectionError(Exception):
     """Raised when the CUPS server cannot be reached at all."""
@@ -100,14 +122,14 @@ class CupsService:
     def list_jobs(self, which_jobs: str = "not-completed") -> dict[int, dict]:
         conn = self._connect()
         try:
-            return conn.getJobs(which_jobs=which_jobs, my_jobs=False)
+            return conn.getJobs(which_jobs=which_jobs, my_jobs=False, requested_attributes=_JOB_ATTRIBUTES)
         except cups.IPPError as exc:
             raise CupsOperationError(str(exc)) from exc
 
     def get_job(self, job_id: int) -> dict:
         conn = self._connect()
         try:
-            return conn.getJobAttributes(job_id)
+            return conn.getJobAttributes(job_id, requested_attributes=_JOB_ATTRIBUTES)
         except cups.IPPError as exc:
             raise JobNotFoundError(f"Job '{job_id}' not found") from exc
 
