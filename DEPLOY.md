@@ -52,22 +52,24 @@ saat ini tidak bentrok dengan daftar di atas — tetap jalankan `docker ps` sebe
 
 ## 1. Salin project ke STB
 
-Dari mesin development:
-
-```bash
-rsync -avz --exclude '.env' --exclude '.git' \
-  /Volumes/Data/www/htdocs7.4/print-ui/ \
-  user@STB-IP:/opt/cups-print-manager/
-```
-
-Atau via `git clone`/`scp`, sesuai preferensi Anda. Jangan ikut menyalin file `.env`
-(mengandung secret) — buat baru langsung di STB pada langkah 3.
-
-Login ke STB:
+Login ke STB, lalu clone repository langsung dari GitHub:
 
 ```bash
 ssh user@STB-IP
+mkdir -p /opt/cups-print-manager
+git clone https://github.com/bruriwijayanto/print-ui.git /opt/cups-print-manager
 cd /opt/cups-print-manager
+```
+
+`.env` sengaja tidak ikut ter-clone (masuk `.gitignore`) — dibuat baru langsung di
+STB pada langkah 3, jangan pernah commit secret ke Git.
+
+Untuk update ke commit terbaru di kemudian hari:
+
+```bash
+cd /opt/cups-print-manager
+git pull
+docker compose up -d --build
 ```
 
 ---
@@ -200,6 +202,69 @@ Port `631` (CUPS) **tidak boleh** dipublish ke Internet. Saat ini `cups-test`
 (image `manuelklaer/cups-canon:latest`) mem-publish `631` ke `0.0.0.0` — lihat
 peringatan keamanan di bagian 0. Idealnya, setelah backend berjalan lewat
 `cups-network`, publish port host `631` tersebut dilepas.
+
+---
+
+## 7b. Mengarahkan domain via Cloudflare Tunnel
+
+`cloudflared` di server ini jalan sebagai systemd service dengan tunnel
+`oramyid-ssh` (UUID `bd875309-e855-4b38-999c-06031dc7163b`) di domain `ora.my.id`.
+
+> **Penting — tunnel ini remotely-managed (dikelola dari dashboard).**
+> `/etc/cloudflared/config.yml` di server ini punya bagian `ingress:` lokal, tapi
+> bagian itu **diabaikan** oleh cloudflared. Terbukti dari
+> `journalctl -u cloudflared`: konfigurasi ingress yang benar-benar dipakai saat
+> runtime (baris log `Updated to new configuration config=...`) berisi hostname
+> (`waha.ora.my.id`, `lib.ora.my.id`, `chat.ora.my.id`, dst) dan port (mis. `gowa`
+> ke `http://localhost:8011`) yang **tidak sama** dengan isi file lokal — artinya
+> routing sebenarnya ditarik dari Cloudflare Zero Trust dashboard, bukan dari
+> file di server. Menambah entri `ingress` di file lokal untuk tunnel ini
+> **tidak berpengaruh apa pun**, walau `cloudflared tunnel route dns` (membuat
+> CNAME) tetap berhasil dan perlu dijalankan.
+>
+> File lokal tetap dipakai untuk `tunnel:` dan `credentials-file:` (identitas
+> tunnel), hanya bagian `ingress:`-nya yang mati untuk kasus ini.
+
+### Langkah yang benar: tambahkan Public Hostname di dashboard
+
+1. Buka **https://one.dash.cloudflare.com** (login akun Cloudflare yang sama).
+2. **Networks** → **Tunnels** → pilih tunnel **`oramyid-ssh`**.
+3. Tab **Public Hostname** → **Add a public hostname**.
+4. Isi:
+   - Subdomain: `printer`
+   - Domain: `ora.my.id`
+   - Path: kosongkan
+   - Service → Type: `HTTP`, URL: `localhost:8000` (Phase 1, langsung ke backend;
+     ganti ke `localhost:8080` setelah frontend/Nginx Phase 4 selesai)
+5. **Save**.
+
+Perubahan aktif dalam hitungan detik — **tidak perlu** `systemctl restart cloudflared`
+untuk tunnel dashboard-managed.
+
+Kalau DNS record `printer.ora.my.id` belum ada (biasanya otomatis dibuat saat Save di
+langkah 4), pastikan dengan:
+
+```bash
+sudo cloudflared tunnel route dns oramyid-ssh printer.ora.my.id
+```
+
+> ⚠️ **Jangan pernah** menambahkan public hostname yang mengarah ke `localhost:631`
+> (CUPS).
+
+### Verifikasi
+
+```bash
+curl -sS -w '\nHTTP_CODE:%{http_code}\n' https://printer.ora.my.id/api/health
+```
+
+Harus mengembalikan response yang sama seperti `curl http://localhost:8000/api/health`
+di langkah 5, tapi sekarang lewat HTTPS publik via Cloudflare. Kalau masih 404, cek
+lagi apakah hostname benar-benar tersimpan di tab Public Hostname; kalau 502, berarti
+hostname sudah kebaca tapi backend belum jalan di `localhost:8000` (jalankan langkah 4).
+
+> Catatan non-mendesak: `cloudflared tunnel list` melaporkan versi terpasang
+> (`2025.7.0`) sudah outdated, direkomendasikan upgrade ke `2026.8.3` — tidak
+> menghalangi langkah di atas, bisa dijadwalkan terpisah.
 
 ---
 

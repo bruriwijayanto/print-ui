@@ -2,7 +2,7 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 1 — FastAPI + CUPS (printers read-only, health check)**.
+Status implementasi saat ini: **Phase 2 — Print API** (`POST /api/print` sungguhan ke CUPS, di atas Phase 1: health check + printers read-only).
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -63,7 +63,25 @@ docker compose logs -f backend
 
 ## Test print
 
-Fitur print (`POST /api/print`) belum diimplementasikan — akan hadir di Phase 2.
+```bash
+curl -X POST \
+  https://printer.ora.my.id/api/print \
+  -F "file=@test.pdf" \
+  -F "printer=Canon-G2030" \
+  -F "copies=1"
+```
+
+Format didukung saat ini: PDF, PNG, JPG/JPEG, TXT (divalidasi lewat magic bytes, bukan
+cuma ekstensi nama file). Response sukses:
+
+```json
+{"success": true, "job_id": 42, "printer": "Canon-G2030", "filename": "test.pdf", "status": "queued"}
+```
+
+Cek hasilnya benar-benar tercetak dengan `docker exec cups-test lpstat -W completed -o` atau
+lewat web UI CUPS di `cups-test`. `PRINT_API_KEY` belum diberlakukan (autentikasi masuk
+Phase 5) — endpoint ini untuk sementara terbuka bagi siapa pun yang bisa mencapai
+`printer.ora.my.id`, jadi jangan sebarkan URL ini secara luas sebelum Phase 5 selesai.
 
 ## Troubleshooting
 

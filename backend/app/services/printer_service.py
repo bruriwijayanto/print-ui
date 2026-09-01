@@ -23,7 +23,7 @@ _STATE_MAP = {
 _JOB_STATE_PROCESSING = 5
 
 
-def _map_printer_state(attrs: dict) -> str:
+def map_printer_state(attrs: dict) -> str:
     reasons = attrs.get("printer-state-reasons") or []
     if isinstance(reasons, str):
         reasons = [reasons]
@@ -57,7 +57,7 @@ def _to_summary(name: str, attrs: dict, job_info: dict) -> dict:
     return {
         "name": name,
         "description": attrs.get("printer-info", ""),
-        "state": _map_printer_state(attrs),
+        "state": map_printer_state(attrs),
         "state_message": attrs.get("printer-state-message", ""),
         "accepting_jobs": bool(attrs.get("printer-is-accepting-jobs", False)),
         "shared": bool(attrs.get("printer-is-shared", False)),
