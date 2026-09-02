@@ -2,10 +2,11 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 6 — Production Docker selesai** (image backend
-dioptimasi jadi multi-stage, 443MB → 194MB), di atas Phase 1-5 (health check, print, job
-management, frontend, authentication + security). Phase 7 (dokumentasi Cloudflare Tunnel
-mandiri — sebagian sudah ada di `DEPLOY.md`) masih menyusul.
+Status implementasi saat ini: **semua 7 phase dari spesifikasi awal selesai** — health
+check, print API, job management, frontend React, authentication + security, image
+Docker produksi (multi-stage, 443MB → 194MB), dan dokumentasi Cloudflare Tunnel lengkap
+(lihat [DEPLOY.md](DEPLOY.md) §7b). Aplikasi berjalan stabil di produksi dengan watchdog
+otomatis untuk pemulihan printer.
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
