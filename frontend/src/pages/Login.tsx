@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { KeyRound } from "lucide-react";
-import { ApiError, printerApi } from "@/lib/api";
+import { ApiError, authApi } from "@/lib/api";
 import { getApiKey, setApiKey } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [apiKey, setApiKeyInput] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,17 +25,17 @@ export default function Login() {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
-    setApiKey(apiKey);
 
     try {
-      // Any authenticated endpoint works as a lightweight credential check.
-      await printerApi.getPrinters();
+      const { token } = await authApi.login(username, password);
+      setApiKey(token);
       const redirectTo = (location.state as { from?: string } | null)?.from ?? "/";
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setApiKey("");
       if (err instanceof ApiError && err.status === 401) {
-        setError("API key salah.");
+        setError("Username atau password salah.");
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError("Terlalu banyak percobaan. Coba lagi dalam beberapa menit.");
       } else {
         setError("Tidak dapat menghubungi server. Coba lagi.");
       }
@@ -53,19 +54,30 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="apiKey">API Key</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="apiKey"
-                type="password"
+                id="username"
+                type="text"
                 autoFocus
-                value={apiKey}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="Masukkan PRINT_API_KEY"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={isSubmitting || !apiKey}>
+            <Button type="submit" disabled={isSubmitting || !username || !password}>
               {isSubmitting ? "Memeriksa..." : "Masuk"}
             </Button>
           </form>

@@ -70,16 +70,27 @@ end-user.
 
 ## Authentication
 
-`/api/printers`, `/api/print`, dan `/api/jobs` sekarang mewajibkan header:
+`/api/printers`, `/api/print`, dan `/api/jobs` mewajibkan header:
 
 ```text
 Authorization: Bearer <PRINT_API_KEY>
 ```
 
-(`PRINT_API_KEY` dari `.env` backend.) `/api/health` tetap terbuka tanpa auth (dipakai
-Docker `HEALTHCHECK` dan monitoring). Web UI menanyakan key ini sekali lewat halaman
-Login lalu menyimpannya di `localStorage` browser — tidak dikirim ke server lain, dan
-tidak pernah ditampilkan di log.
+Anda tidak perlu mengetik `PRINT_API_KEY` secara langsung — Web UI menyediakan halaman
+Login dengan **username + password** (`ADMIN_USERNAME`/`ADMIN_PASSWORD` di `.env`).
+Backend menukar kredensial itu jadi `PRINT_API_KEY` lewat `POST /api/auth/login`, lalu
+frontend menyimpan token hasilnya di `localStorage` browser dan memakainya untuk semua
+request berikutnya — tidak dikirim ke server lain, tidak pernah ditampilkan di log.
+
+`/api/health` dan `/api/auth/login` sengaja tetap terbuka tanpa auth (health dipakai
+Docker `HEALTHCHECK`; login memang untuk MENDAPATKAN kredensial). `/api/auth/login`
+punya rate limit sendiri yang lebih ketat (10 percobaan/5 menit per IP) dibanding limit
+umum, karena password yang dipilih user jauh lebih mudah ditebak dibanding
+`PRINT_API_KEY` yang acak 32-byte.
+
+Ingin akses API langsung tanpa lewat Web UI (mis. dari skrip)? Tetap bisa pakai
+`PRINT_API_KEY` langsung sebagai Bearer token seperti sebelumnya — endpoint login cuma
+tambahan cara masuk yang lebih ramah pengguna, bukan pengganti API key itu sendiri.
 
 ## Rate limiting & secure headers
 

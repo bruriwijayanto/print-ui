@@ -17,7 +17,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 
-def _client_ip(request: Request) -> str:
+def client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
@@ -35,9 +35,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
 
-        client_ip = _client_ip(request)
+        ip = client_ip(request)
         now = time.monotonic()
-        hits = self._hits.setdefault(client_ip, deque())
+        hits = self._hits.setdefault(ip, deque())
 
         while hits and now - hits[0] > self._window_seconds:
             hits.popleft()

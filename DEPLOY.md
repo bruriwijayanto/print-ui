@@ -109,9 +109,15 @@ Minimal yang wajib disesuaikan:
 ```env
 CUPS_SERVER=http://cups-test:631
 PRINT_API_KEY=<ganti-dengan-key-acak-yang-kuat>
+ADMIN_USERNAME=<username-login-web-ui>
+ADMIN_PASSWORD=<password-login-web-ui-yang-kuat>
 BACKEND_PORT=8000
 FRONTEND_PORT=8080
 ```
+
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` dipakai untuk login di Web UI (`POST /api/auth/login`)
+— backend menukarnya jadi `PRINT_API_KEY` di belakang layar, jadi pengguna Web UI tidak
+perlu tahu/mengetik `PRINT_API_KEY` sama sekali.
 
 `CUPS_USER` / `CUPS_PASSWORD` **boleh dikosongkan** untuk Phase 1 (endpoint read-only
 tidak butuh autentikasi CUPS). Baru diperlukan saat Phase 2/3 (print & admin job)

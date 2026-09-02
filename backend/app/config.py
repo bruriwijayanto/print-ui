@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     cups_user: str = ""
     cups_password: str = ""
     print_api_key: str = "change-this-key"
+    admin_username: str = "admin"
+    admin_password: str = "change-this-password"
     max_upload_size_mb: int = 50
     poll_interval_seconds: int = 5
     cors_origins: str = "http://localhost:8080"

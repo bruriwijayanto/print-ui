@@ -54,6 +54,15 @@ export const healthApi = {
   get: () => request<HealthStatus>("/health"),
 };
 
+export const authApi = {
+  login: (username: string, password: string) =>
+    request<{ token: string }>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }),
+};
+
 export const printerApi = {
   getPrinters: () => request<PrinterSummary[]>("/printers"),
   getPrinter: (name: string) => request<PrinterDetail>(`/printers/${encodeURIComponent(name)}`),
