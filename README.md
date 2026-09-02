@@ -2,11 +2,10 @@
 
 Web UI dan REST API untuk mengelola printer yang terhubung ke server Linux melalui CUPS.
 
-Status implementasi saat ini: **Phase 5 — Authentication + Security selesai**
-(autentikasi API Key, rate limiting sederhana, secure headers via Nginx), di atas
-Phase 1-4 (health check, print, job management, frontend). Phase 6 (Production Docker)
-dan Phase 7 (dokumentasi Cloudflare Tunnel — sebagian sudah ada di `DEPLOY.md`) masih
-menyusul.
+Status implementasi saat ini: **Phase 6 — Production Docker selesai** (image backend
+dioptimasi jadi multi-stage, 443MB → 194MB), di atas Phase 1-5 (health check, print, job
+management, frontend, authentication + security). Phase 7 (dokumentasi Cloudflare Tunnel
+mandiri — sebagian sudah ada di `DEPLOY.md`) masih menyusul.
 
 Untuk langkah deploy lengkap ke STB target, lihat [DEPLOY.md](DEPLOY.md).
 
@@ -154,6 +153,21 @@ domain lain), bukan untuk Web UI ini sendiri.
 
 Polling: printers setiap 5 detik, jobs setiap 4 detik (TanStack Query `refetchInterval`),
 sesuai batasan resource STB — tidak menggunakan WebSocket.
+
+## Ukuran Docker image (Phase 6)
+
+Backend pakai multi-stage build: stage `builder` install `gcc` + `libcups2-dev` untuk
+kompilasi `pycups`, stage final cuma install `libcups2` (runtime saja, tanpa compiler/
+header) lewat virtualenv yang di-copy dari stage builder.
+
+```text
+backend  : 443MB -> 194MB  (-56%)
+frontend : 63MB            (sudah multi-stage sejak awal, tidak berubah)
+```
+
+Tervalidasi: 60 test lolos di image baru, dan build ARM64 (`docker buildx build
+--platform linux/arm64`) tetap sukses dengan hasil yang sama (220MB) — pengurangan
+ukuran konsisten di kedua arsitektur.
 
 ## Troubleshooting
 
