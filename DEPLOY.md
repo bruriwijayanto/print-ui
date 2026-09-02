@@ -3,10 +3,10 @@
 Panduan ini untuk deploy ke **STB target** (Linux Armbian, ARM64/aarch64) yang sudah
 menjalankan container CUPS existing (`cups-test`) dengan printer Canon G2030.
 
-> **Status implementasi saat ini: Phase 1** — hanya backend read-only
-> (`/api/health`, `/api/printers`, `/api/printers/{name}`). Belum ada `POST /api/print`,
-> job management, frontend, atau autentikasi API. Panduan ini akan diperbarui setiap
-> phase baru selesai.
+> **Status implementasi saat ini: Phase 1-6 selesai** — backend penuh (health, printers,
+> print, job management), frontend React dengan login API Key, rate limiting + secure
+> headers, dan image Docker backend yang sudah dioptimasi (multi-stage, 443MB → 194MB).
+> Phase 7 (dokumentasi Cloudflare Tunnel di bawah) sedang dilengkapi.
 
 ---
 
@@ -231,10 +231,83 @@ peringatan keamanan di bagian 0. Idealnya, setelah backend berjalan lewat
 
 ---
 
-## 7b. Mengarahkan domain via Cloudflare Tunnel
+## 7b. Cloudflare Tunnel (Phase 7)
 
-`cloudflared` di server ini jalan sebagai systemd service dengan tunnel
-`oramyid-ssh` (UUID `bd875309-e855-4b38-999c-06031dc7163b`) di domain `ora.my.id`.
+Cloudflare Tunnel bersifat **opsional** — tidak dibutuhkan untuk development atau akses
+LAN (bagian 7 di atas). Gunakan ini kalau ingin aplikasi bisa diakses dari luar LAN tanpa
+membuka port apa pun di router/firewall.
+
+### Arsitektur
+
+```text
+                    INTERNET
+                       |
+                       | HTTPS
+                       v
+              Cloudflare Tunnel
+                       |
+                       v
+             +-------------------+
+             |     STB:8080      |
+             |  (Nginx frontend) |
+             |                   |
+             |  - serve React    |
+             |  - proxy /api/*   |
+             +---------+---------+
+                       |
+                       | (Docker network internal)
+                       v
+             +-------------------+
+             | Backend :8000     |
+             | (FastAPI)         |
+             +---------+---------+
+                       |
+                       | cups-network (internal, tidak di-publish)
+                       v
+             +-------------------+
+             | cups-test :631    |
+             | (CUPS)            |
+             +---------+---------+
+                       |
+                       | USB
+                       v
+             +-------------------+
+             | Printer           |
+             +-------------------+
+```
+
+**Port `631` (CUPS) tidak boleh pernah diarahkan lewat tunnel** — hanya port `8080`
+(frontend) yang dipublikasikan ke Internet. Backend `:8000` juga sebaiknya tidak
+ditunnel untuk penggunaan publik (cukup untuk debugging LAN) — publik cukup lewat
+`:8080` karena Nginx sudah men-forward `/api/*` secara internal.
+
+### Kalau `cloudflared` belum pernah dipasang (setup dari nol)
+
+Kalau STB Anda belum punya tunnel sama sekali (beda dengan kasus di bawah yang
+mengasumsikan tunnel sudah ada dan dipakai bersama service lain):
+
+1. Login ke **https://one.dash.cloudflare.com** dengan akun Cloudflare yang mengelola
+   domain Anda.
+2. **Networks** (atau **Access**) → **Tunnels** → **Create a tunnel**.
+3. Pilih **Cloudflared**, beri nama (mis. `print-manager`), **Save tunnel**.
+4. Halaman berikutnya memberi perintah instalasi connector untuk OS server Anda — untuk
+   Debian/Armbian biasanya:
+   ```bash
+   curl -L https://pkg.cloudflare.com/cloudflare-main.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-main.gpg
+   echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared bookworm main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+   sudo apt-get update && sudo apt-get install cloudflared
+   ```
+   lalu jalankan perintah `cloudflared service install <token>` yang ditampilkan di
+   dashboard (token unik per tunnel, jangan pakai punya orang lain).
+5. Tunggu status tunnel di dashboard jadi **Healthy** (connector sudah terhubung).
+6. Lanjut ke **Public Hostname** seperti langkah di bawah (dari titik ini, prosesnya
+   sama persis dengan tunnel yang sudah ada).
+
+### Tunnel yang sudah ada (kasus di server ini)
+
+`cloudflared` di server ini jalan sebagai systemd service dengan tunnel `oramyid-ssh`
+(UUID `bd875309-e855-4b38-999c-06031dc7163b`) di domain `ora.my.id`, dipakai bersama
+service lain (n8n, waha, dll).
 
 > **Penting — tunnel ini remotely-managed (dikelola dari dashboard).**
 > `/etc/cloudflared/config.yml` di server ini punya bagian `ingress:` lokal, tapi
@@ -347,3 +420,27 @@ docker network disconnect cups-network cups-test
 
 Laporkan hasil kedua checklist ini (terutama screenshot atau deskripsi tampilan
 Dashboard) sebelum lanjut ke **Phase 5 — Authentication + Security**.
+
+## Checklist acceptance Phase 6 — Production Docker
+
+```text
+[ ] docker compose build berhasil tanpa error di ARM64 (STB asli)
+[ ] docker images menunjukkan cups-print-manager-backend jauh lebih kecil dari
+    sebelumnya (referensi: 443MB -> 194MB di amd64, ~459MB -> 220MB di ARM64)
+[ ] docker compose up -d berhasil, backend healthy
+[ ] Fungsi tidak berubah: /api/health, /api/printers, print, job management semua
+    masih bekerja seperti sebelum optimasi
+```
+
+## Checklist acceptance Phase 7 — Cloudflare Tunnel
+
+```text
+[ ] Tunnel cloudflared berjalan (Healthy di dashboard, atau `systemctl status
+    cloudflared` aktif untuk instalasi non-dashboard)
+[ ] Public Hostname mengarah ke localhost:8080 (frontend), BUKAN :8000 atau :631
+[ ] https://<domain-anda>/ menampilkan Web UI (Dashboard), bukan JSON/404/502
+[ ] https://<domain-anda>/api/health dapat diakses tanpa perlu VPN/LAN
+[ ] Port 631 (CUPS) dipastikan TIDAK pernah muncul di daftar Public Hostname manapun
+[ ] docker ps di STB menunjukkan cups-test tidak mem-publish 631 ke Internet (idealnya
+    tidak dipublish sama sekali ke host, cukup lewat cups-network internal)
+```
